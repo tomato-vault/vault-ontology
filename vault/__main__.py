@@ -8,7 +8,7 @@ from datetime import date
 from collections import Counter
 from pathlib import Path
 
-from vault.create import build_frontmatter, check_new
+from vault.create import build_frontmatter, check_new, routing_warning
 from vault.graph import (
     DB_NAME,
     build,
@@ -317,6 +317,9 @@ def _new(args):
         "---\n" + fm + "\n---\n\n" + body.strip() + "\n", encoding="utf-8"
     )
     print(f"created: {relative}")
+    # A warning, not a refusal: the file is already written. Routing level 2.
+    if warning := routing_warning(args.vault, relative, args.type):
+        print(f"warning: {warning}", file=sys.stderr)
     return 0
 
 

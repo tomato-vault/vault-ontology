@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from vault.create import build_frontmatter, check_new
+from vault.create import build_frontmatter, check_new, routing_warning
 from vault.__main__ import main
 
 BASE = "---\ntype: concept\nsummary: ok\ncreated: 2026-08-10\n---\n본문\n"
@@ -118,3 +118,57 @@ def test_new_refuses_a_bad_document(tmp_path):
     )
     assert code == 1
     assert not (tmp_path / "200 Dev/CIDR.md").exists()
+
+
+# ── routing warning — the folder's own documents are the table ──────────────
+
+
+def typed(type_):
+    return f"---\ntype: {type_}\nsummary: ok\ncreated: 2026-08-10\n---\n본문\n"
+
+
+def test_a_type_new_to_its_folder_gets_a_routing_warning(tmp_path):
+    root = make(tmp_path, {f"600 Content/601 Books/b{i}.md": typed("capture") for i in range(5)})
+    warning = routing_warning(root, "600 Content/601 Books/새 노트.md", "decision")
+    assert warning is not None
+    assert "600 Content/601 Books" in warning
+    assert "capture 5" in warning and "`decision`" in warning
+
+
+def test_a_type_the_folder_already_holds_is_fine(tmp_path):
+    root = make(tmp_path, {f"600 Content/601 Books/b{i}.md": typed("capture") for i in range(5)})
+    assert routing_warning(root, "600 Content/601 Books/새 노트.md", "capture") is None
+
+
+def test_one_neighbour_of_the_type_is_enough(tmp_path):
+    files = {f"200 Dev/Network/c{i}.md": typed("concept") for i in range(5)}
+    files["200 Dev/Network/사건.md"] = typed("case")
+    root = make(tmp_path, files)
+    assert routing_warning(root, "200 Dev/Network/또 사건.md", "case") is None
+
+
+def test_too_few_neighbours_say_nothing(tmp_path):
+    root = make(tmp_path, {f"600 Content/601 Books/b{i}.md": typed("capture") for i in range(2)})
+    assert routing_warning(root, "600 Content/601 Books/새 노트.md", "decision") is None
+
+
+def test_a_thin_folder_defers_to_its_parent(tmp_path):
+    files = {f"300 Runtime/301 Day Notes/2026-08-{10 + i}.md": typed("log") for i in range(6)}
+    files["300 Runtime/301 Day Notes/sub/하나.md"] = typed("log")
+    root = make(tmp_path, files)
+    warning = routing_warning(root, "300 Runtime/301 Day Notes/sub/새.md", "concept")
+    assert warning is not None
+    assert warning.startswith("300 Runtime/301 Day Notes 의")   # the parent spoke, not `sub`
+
+
+def test_excluded_folders_do_not_count_as_neighbours(tmp_path):
+    root = make(tmp_path, {f"000 Index/Templates/t{i}.md": typed("tradeoff") for i in range(5)})
+    assert routing_warning(root, "000 Index/Templates/새.md", "concept") is None
+
+
+def test_the_warning_never_blocks_new(tmp_path):
+    root = make(tmp_path, {f"200 Dev/c{i}.md": typed("concept") for i in range(5)})
+    code = main(["new", "--type", "log", "--title", "오늘", "--dir", "200 Dev",
+                 "--body", "# 오늘", "--vault", str(root)])
+    assert code == 0
+    assert (root / "200 Dev/오늘.md").exists()
