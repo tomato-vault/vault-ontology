@@ -2,9 +2,12 @@
 
 import argparse
 import sqlite3
+import json
+import os
 import sys
+import time
 
-from datetime import date
+from datetime import date, datetime
 from collections import Counter
 from pathlib import Path
 
@@ -210,14 +213,17 @@ def _ask(args):
     The graph is built here rather than read off disk, for the reason
     `validate` builds it: an answer from a stale file is worse than none.
     """
+    started = time.perf_counter()
     graph = build_graph(args.vault)
     whole = {"review": review, "crossing": crossing, "together": together}
+    note = getattr(args, "note", None)
     if args.question in whole:
         answer = whole[args.question](graph)
     else:
-        node = _resolve(graph, args.vault, args.note)
+        node = _resolve(graph, args.vault, note)
         if node is None:
-            print(f"vault: no such document: {args.note}", file=sys.stderr)
+            print(f"vault: no such document: {note}", file=sys.stderr)
+            _log_ask(args.question, note, "no_such_document", 0, started)
             return 2
         answer = {"lineage": lineage, "evidence": evidence, "affected": affected}[
             args.question
@@ -228,7 +234,35 @@ def _ask(args):
     for line in render(answer):
         print(line)
     print(f"{len(answer.paths)} 경로 · {answer.status}", file=sys.stderr)
+    _log_ask(args.question, note, answer.status, len(answer.paths), started)
     return 0 if answer else 1
+
+
+def _log_ask(question, note, status, paths, started):
+    """Append one line to $VAULT_ASK_LOG, when it is set. Otherwise nothing.
+
+    Opt-in on purpose. The 2026-09-01 observation refused a log inside `ask`
+    because a write side effect on an everyday command would have to be torn
+    out when the observation ended. An environment variable has no side
+    effect until someone sets it, and stays useful after: it is the only
+    place a question asked from inside a Claude session leaves a trace —
+    the shell history never sees those. What the answer was worth is still
+    for a person to write down; this records that it was asked, and what
+    came back.
+    """
+    path = os.environ.get("VAULT_ASK_LOG")
+    if not path:
+        return
+    line = {
+        "at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "question": question,
+        "note": note,
+        "status": status,
+        "paths": paths,
+        "ms": round((time.perf_counter() - started) * 1000),
+    }
+    with open(os.path.expanduser(path), "a", encoding="utf-8") as f:
+        f.write(json.dumps(line, ensure_ascii=False) + "\n")
 
 
 def _resolve(graph, root, name):

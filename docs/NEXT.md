@@ -53,6 +53,19 @@ setopt EXTENDED_HISTORY INC_APPEND_HISTORY
 **2주 실사용 관측이 이걸 쓴다** — 켜 두면 「무엇을 언제 물었나」를 손으로 안 적어도
 된다. 안 켜도 관측은 되고, 날짜를 손으로 적을 뿐이다.
 
+### `vault ask` 는 물은 것을 남길 수 있다 — 환경변수가 있을 때만 (2026-09-08)
+
+```bash
+# ~/.zshrc
+export VAULT_ASK_LOG="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian Vault/.vault-ask.jsonl"
+```
+
+설정돼 있으면 `ask` 한 번에 JSONL 한 줄 — 시각·질문·문서·status·경로 수·ms. 없으면 아무 일도
+안 한다. 셸 히스토리가 못 보는 것, **Claude 세션 안에서 대신 부른 질의**를 잡기 위한 것이다.
+09-01 에 「상시 명령에 쓰기 부작용」이라 기각했던 안을 opt-in 으로 바꿔 살렸다. 파일은 볼트
+루트의 다른 파생물(`.vault-graph.db` · `.vault.ttl`)과 같은 자리이고 `.gitignore` 에 있다.
+답이 쓸모 있었는지는 여전히 사람이 기록장에 적는다.
+
 ### 답안지
 
 `reference/`에 함께 들어 있다 (vault-cli `21faa91`, 2026-08-11 스냅샷). 별도로 받을 것이 없다.
