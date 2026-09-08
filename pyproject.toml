@@ -12,6 +12,9 @@ dependencies = [
 
 [project.scripts]
 vault = "vault.__main__:main"
+# `vo` is the same entry point under a short name, the way vault-vector has
+# `vv`. Type `vo` by hand; write `vault` in documents and scripts.
+vo = "vault.__main__:main"
 
 [dependency-groups]
 dev = [

@@ -19,8 +19,11 @@ uv run pytest -q          # 2026-09-01 기준 433개 통과해야 정상 출발�
 `uv run python -m vault …` 로도 전부 되지만, 매일 쓰려면 설치해 두는 편이 낫다.
 
 ```bash
-uv tool install --force --with pyshacl .
+uv tool install --force -e --with pyshacl .
 ```
+`-e` (editable) 라 레포의 현재 코드를 그대로 쓴다 — 고칠 때마다 재설치하지 않는다 (2026-09-08).
+`vault` 와 `vo` 두 이름이 생긴다. **손으로 칠 땐 `vo`, 문서·스크립트엔 `vault`.**
+
 
 **`--with pyshacl` 이 필요하다.** `vault validate` 가 SHACL 을 쓰는데 그것만 선택
 의존성이라, 빼고 설치하면 `validate` 하나가 죽는다 (2026-09-01 에 실제로 겪었다 —
@@ -30,7 +33,7 @@ uv tool install --force --with pyshacl .
 저장소를 고친 뒤 전역 명령이 옛 동작을 하면 uv 가 휠을 캐시한 것이다.
 
 ```bash
-uv tool install --force --reinstall --with pyshacl .
+uv tool install --force --reinstall -e --with pyshacl .
 ```
 
 ### 셸 히스토리는 기본으로 안 남는다
