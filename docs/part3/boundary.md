@@ -234,7 +234,8 @@ Phase 16를 기다릴 이유가 없고, 기존 `vault lint` 확장으로 충분�
 
 ## Vector 경계
 
-3부는 VectorDB를 구현하지 않는다. 연결 계약만 정의한다.
+3부는 VectorDB를 구현하지 않는다. 연결 계약만 정의한다. **구현은 옆 레포 `vault-vector` 가
+맡았고, 2026-09-08 기준 아래 계약의 문서 단계까지 이어졌다** — 이 절 끝의 「구현 현황」.
 
 ```
 chunk_id  →  artifact IRI  →  section/block  →  knowledge entity
@@ -257,6 +258,24 @@ chunk_id  →  artifact IRI  →  section/block  →  knowledge entity
 측정된 뒤에 Vector를 검토한다. 순서를 뒤집지 않는다.
 
 VectorDB 자체의 설계와 실측은 [`retrieval-architecture.md`](../notes/retrieval-architecture.md)에 있다.
+
+### 구현 현황 (2026-09-08)
+
+| 계약 | 상태 |
+|---|---|
+| `chunk → artifact IRI` | **됨.** `vault-vector` 의 `doc.path` 가 `node.path` 와 같은 키(볼트 상대경로, NFC). `doc_iri` 로 IRI 가 나온다 |
+| `→ section/block` | 미구현. 청크에 heading 경로는 있으나 `section_iri` 와 잇지 않았다 — 감시 목록 |
+| `→ knowledge entity` | 미구현 |
+| 점수는 asserted graph 밖 | **지킨다.** `vv search --near` 는 그래프 이웃을 「문맥」으로 붙이고 점수를 섞지 않는다. `test_crossing_is_never_similarity` 유지 |
+| 유사 후보는 별도 후보 | **지킨다.** vault-new 4부 관문 — 검색만이 근거인 관계는 되묻고, 위임받은 것만 `proposed` |
+
+같은 파서·같은 경계를 쓴다 — `vault-vector` 가 `vault.scan`·`vault.frontmatter`·`vault.graph.in_graph` 를
+직접 import 한다(경로 의존, Python 3.14). 복제본이 9일 만에 갈라진 뒤의 결정이다.
+
+이쪽에서 저쪽으로 흘러간 규칙 하나: **「폴더가 type 을 말한다」**(문서 4,179 중 90.1%). 여기서는
+`vault new` 의 라우팅 경고(`routing_warning`), 저기서는 `vv place --type` 이 그 type 이 없는 폴더를
+후보에서 뺀다. 반대로 저쪽에서 온 사실 하나: 임베딩 이웃은 type 을 72.5%밖에 못 맞힌다(4,050편) —
+type 은 벡터의 일이 아니라는 것을 규모 있게 확인했다.
 
 ---
 
