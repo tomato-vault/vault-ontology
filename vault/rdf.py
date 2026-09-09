@@ -309,12 +309,16 @@ def edge_triples(relative, text, resolve, headings):
         yield subject, DCTERMS.isPartOf, folder_iri(directory)
 
 
-def _sentinel(target):
+def sentinel(target):
     """The resource a non-document source names, or None.
 
     None means "this is a note name, go and resolve it". Returning a
     resource here is what keeps `_raw` meaning BROKEN rather than
     "anything the resolver could not place".
+
+    Public because `tools/measure_phase15` has to ask the same question in
+    the same order. It used to answer it on its own and went stale the day
+    the sentinel stopped being a broken link.
     """
     if target == EXPERIENCE:
         return V.experience
@@ -342,7 +346,7 @@ def _edge(subject, kind, target, heading, resolve, headings):
     against the whole document would hide that.
     """
     # A source that is not a document, before anything is looked up.
-    outside = _sentinel(target)
+    outside = sentinel(target)
     if outside is not None:
         yield subject, RESOLVED[kind], outside
         return

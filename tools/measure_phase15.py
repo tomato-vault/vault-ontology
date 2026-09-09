@@ -20,7 +20,7 @@ from rdflib import Graph, Literal
 from vault.frontmatter import split_frontmatter
 from vault.graph import in_graph
 from vault.links import link_parts
-from vault.rdf import TTL_NAME, V, doc_iri, section_iri
+from vault.rdf import RESOLVED, TTL_NAME, V, doc_iri, section_iri, sentinel
 from vault.scan import nfc, resolve_link, scan_vault
 from vault.sections import item_headings, resolve_anchor
 
@@ -75,16 +75,23 @@ def main():
             missing.append((name, relation, target, "출처 문서를 못 찾음"))
             continue
 
-        document, anchor = link_parts(target)
-        landed = land(target, source)
-        item = resolve_anchor(headings.get(landed, ()), anchor) if landed else None
-        if item:
-            predicate, object_ = V[relation], section_iri(landed, item)
-        elif landed and not anchor:
-            predicate, object_ = V[relation], doc_iri(landed)
+        # A source that is not a document, before anything is looked up —
+        # the order `rdf._edge` uses. Asking the same question through the
+        # same function is the point: this check read `experience` as a
+        # broken link for as long as it duplicated the answer instead.
+        outside = sentinel(target)
+        if outside is not None:
+            predicate, object_ = RESOLVED[relation], outside
         else:
-            # Unresolved, which for `experience` is the normal case.
-            predicate, object_ = V[relation + "_raw"], Literal(target)
+            document, anchor = link_parts(target)
+            landed = land(target, source)
+            item = resolve_anchor(headings.get(landed, ()), anchor) if landed else None
+            if item:
+                predicate, object_ = V[relation], section_iri(landed, item)
+            elif landed and not anchor:
+                predicate, object_ = V[relation], doc_iri(landed)
+            else:
+                predicate, object_ = V[relation + "_raw"], Literal(target)
 
         if (doc_iri(source), predicate, object_) in graph:
             found[relation] += 1
