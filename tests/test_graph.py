@@ -432,3 +432,16 @@ def test_orphans_can_be_limited_to_a_zone(tmp_path):
         )
     )
     assert orphans(db, "500 Mind") == ["500 Mind/B.md"]
+
+
+def test_cli_q_sql(tmp_path, capsys):
+    from vault.__main__ import main
+    db_file = tmp_path / ".vault-graph.db"
+    make(tmp_path, {"200 Dev/CIDR.md": NOTE.format(body="본문")})
+    build(tmp_path, db_file)
+
+    rc = main(["q", "sql", "SELECT name, zone FROM node", "--vault", str(tmp_path)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "CIDR · 200 Dev" in out
+

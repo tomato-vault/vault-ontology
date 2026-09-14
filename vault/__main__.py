@@ -12,6 +12,10 @@ from collections import Counter
 from pathlib import Path
 
 from vault.create import build_frontmatter, check_new, routing_warning
+from vault.doctor import run_doctor
+from vault.ingest import ingest_draft
+
+
 from vault.graph import (
     DB_NAME,
     build,
@@ -28,7 +32,10 @@ from vault.lint import lint_vault
 from vault.rdf import TTL_NAME, build_graph
 from vault.shacl import findings, format_finding, shapes_graph, summarise
 from vault.scan import nfc
+from vault.schema import TYPES
 from vault.tags import FREE, judge, tag_health, tag_vocabulary
+from vault.template import list_templates, render_template
+
 
 DEFAULT_VAULT = Path.home() / (
     "Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian Vault"
@@ -76,7 +83,37 @@ def _parser():
     new.add_argument("--created")
     new.add_argument("--mkdir", action="store_true")
 
+    tmpl = commands.add_parser(
+        "template", parents=[common], help="render schema template or list templates"
+    )
+    tmpl.add_argument("type", nargs="?", help="document type")
+    tmpl.add_argument("--list", action="store_true", help="list existing templates")
+    tmpl.add_argument("--bare", action="store_true", help="omit hints and sample summary")
+
+    ing = commands.add_parser(
+        "ingest", parents=[common], help="ingest an existing draft into the vault"
+    )
+    ing.add_argument("draft", type=Path, help="path to draft markdown file")
+    ing.add_argument("--dir", required=True, help="vault relative directory")
+    ing.add_argument("--type", help="document type (defaults to draft frontmatter)")
+    ing.add_argument("--title", help="document title (defaults to draft filename)")
+    ing.add_argument("--summary", help="summary (defaults to draft frontmatter)")
+    ing.add_argument("--builds-on", dest="builds_on", action="append", default=[])
+    ing.add_argument("--supersedes", action="append", default=[])
+    ing.add_argument("--created")
+    ing.add_argument("--mkdir", action="store_true")
+    ing.add_argument("--force", action="store_true")
+    ing.add_argument("--rm", action="store_true", help="remove draft after ingesting")
+
+    doc = commands.add_parser(
+        "doctor", parents=[common], help="check for lost, evicted, or shrunk files"
+    )
+    doc.add_argument("--restore", action="store_true", help="restore missing files from git")
+
     # `q` asks the document graph — where a note sits, what it links to.
+
+
+
     # `ask` asks the semantic one — what a judgement rests on, and why.
     # Two groups because the answers have different shapes: `q` returns
     # paths, `ask` returns paths WITH the relation chain that found them.
@@ -100,7 +137,9 @@ def _parser():
     ):
         queries.add_parser(name, parents=[common]).add_argument(argument)
     queries.add_parser("orphans", parents=[common]).add_argument("zone", nargs="?")
+    queries.add_parser("sql", parents=[common]).add_argument("statement")
     return parser
+
 
 
 def main(argv=None):
@@ -170,6 +209,18 @@ def main(argv=None):
 
     if args.command == "new":
         return _new(args)
+
+    if args.command == "template":
+        return _template(args)
+
+    if args.command == "ingest":
+        return _ingest(args)
+
+    if args.command == "doctor":
+        return _doctor(args)
+
+
+
 
     database = args.vault / DB_NAME
     if not database.exists():
@@ -302,7 +353,13 @@ def _query(connection, args):
             print(path)
         return 0
 
+    if args.query == "sql":
+        for row in connection.execute(args.statement):
+            print("  " + " · ".join(str(v)[:60] for v in row))
+        return 0
+
     start = find(connection, args.note)
+
     if start is None:
         print(f"vault: no such document: {args.note}", file=sys.stderr)
         return 2
@@ -355,6 +412,119 @@ def _new(args):
     if warning := routing_warning(args.vault, relative, args.type):
         print(f"warning: {warning}", file=sys.stderr)
     return 0
+
+
+def _template(args):
+    """Render skeleton text or list vault templates. 0 clean · 2 error."""
+    if args.list:
+        rows = list_templates(args.vault)
+        print(f"templates in vault — {len(rows)} found\n")
+        for rel, s in rows:
+            name = Path(rel).stem
+            print(f"  {name}")
+            if s:
+                print(f"      {s[:74]}")
+            print(f"      {rel}")
+        return 0
+
+    if not args.type:
+        print("vault template: specify a type or --list", file=sys.stderr)
+        return 2
+
+    if args.type not in TYPES:
+        print(f"vault template: unknown type: {args.type}", file=sys.stderr)
+        print("  " + " ".join(sorted(TYPES)), file=sys.stderr)
+        return 2
+
+    print(render_template(args.type, bare=args.bare))
+    return 0
+
+
+def _ingest(args):
+    """Ingest a draft document. 0 clean · 1 rejected · 2 error."""
+    if not args.draft.is_file():
+        print(f"vault ingest: no such draft: {args.draft}", file=sys.stderr)
+        return 2
+
+    relative, problems = ingest_draft(
+        vault_path=args.vault,
+        draft_path=args.draft,
+        dir_=args.dir,
+        type_=args.type,
+        title=args.title,
+        summary=args.summary,
+        builds_on=args.builds_on,
+        supersedes=args.supersedes,
+        created=args.created,
+        mkdir=args.mkdir,
+        force=args.force,
+        rm=args.rm,
+    )
+    if problems:
+        print("not ingested — did not pass the schema.\n", file=sys.stderr)
+        for code, detail in problems:
+            print(f"  {code:<22}{(' ' + detail) if detail else ''}", file=sys.stderr)
+        return 1
+
+    print(f"ingested: {relative}")
+    if warning := routing_warning(args.vault, relative, args.type):
+        print(f"warning: {warning}", file=sys.stderr)
+    return 0
+
+
+def _doctor(args):
+    """Diagnose lost, evicted, or shrunk files in the vault. 0 clean · 1 found issues · 2 error."""
+    result = run_doctor(args.vault, restore=args.restore)
+    if result is None:
+        print(f"vault doctor: not a git repository: {args.vault}", file=sys.stderr)
+        return 2
+
+    missing = result["missing"]
+    icloud = result["icloud"]
+    shrunk = result["shrunk"]
+    restored = result["restored"]
+
+    print(f"vault  {args.vault}\n")
+
+    if icloud:
+        print(f"■ iCloud evict 진행 중 — {len(icloud)}건")
+        print("  내용이 클라우드로 내려갔다. 이대로 커밋하면 삭제로 기록된다.")
+        for p in icloud[:20]:
+            print(f"    {p}")
+        if len(icloud) > 20:
+            print(f"    … 외 {len(icloud) - 20}")
+        print("  → 복구: brctl download <경로>  또는 Finder에서 열어 내려받기\n")
+
+    if missing:
+        print(f"■ git에는 있는데 디스크에 없음 — {len(missing)}건")
+        for p in missing[:20]:
+            print(f"    {p}")
+        if len(missing) > 20:
+            print(f"    … 외 {len(missing) - 20}")
+        print("  → 복구: vault doctor --restore\n")
+
+    if restored:
+        print(f"■ git에서 복구됨 — {len(restored)}건")
+        for p in restored[:20]:
+            print(f"    {p}")
+        print()
+
+    if shrunk:
+        print(f"■ 내용이 절반 아래로 줄어듦 — {len(shrunk)}건")
+        print("  덮어쓰기 사고일 수 있다. 의도한 것이면 넘어가라.")
+        for p, old, new in shrunk[:20]:
+            print(f"    {old:>5} → {new:<5}줄  {p}")
+        if len(shrunk) > 20:
+            print(f"    … 외 {len(shrunk) - 20}")
+        print("  → 원본: git show HEAD:<경로>\n")
+
+    if not (missing or icloud or shrunk):
+        print("남은 문제 없음.")
+        return 0
+    return 1
+
+
+
 
 
 def _predicate_counts(graph):

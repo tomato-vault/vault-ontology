@@ -20,15 +20,17 @@ from vault.schema import validate
 BAD_NAME = re.compile(r'[`\[\]|#^\\/:*?"<>]')
 
 
-def build_frontmatter(type_, summary, builds_on, created, supersedes=None):
+def build_frontmatter(type_, summary, builds_on, created, supersedes=None, extra=None):
     """Frontmatter text in schema order: type, summary, relations, created.
 
-    A bare target is wrapped: `Base` becomes `[[Base]]`. Tags are NOT added
-    here - the user adds those, from the existing vocabulary only.
+    A bare target is wrapped: `Base` becomes `[[Base]]`. Extra holds
+    unrecognized domain fields from an ingested draft.
     """
     lines = [f"type: {type_}"]
     if summary:
         lines.append(f"summary: {summary}")
+    for _, block in (extra or []):
+        lines.append(block.rstrip())
     for field, items in (("builds_on", builds_on), ("supersedes", supersedes)):
         if items:
             lines.append(f"{field}:")
@@ -41,7 +43,7 @@ def build_frontmatter(type_, summary, builds_on, created, supersedes=None):
     return "\n".join(lines)
 
 
-def check_new(root, relative, fm, body):
+def check_new(root, relative, fm, body, force=False):
     """Every reason this document must not be written, as (code, detail).
 
     Empty means safe to write. `builds_on` must resolve - it names a
@@ -64,15 +66,18 @@ def check_new(root, relative, fm, body):
         problems.append(("empty body", ""))
 
     destination = Path(root) / relative
-    if destination.exists():
-        problems.append(("file exists", relative))
+    if not force:
+        if destination.exists():
+            problems.append(("file exists", relative))
+        # A name already in the vault makes any link to it ambiguous.
+        if nfc(name) in index:
+            problems.append(("duplicate filename", name))
+
     if not destination.parent.is_dir():
         problems.append(("missing direcotry", relative.rsplit("/", 1)[0]))
-    # A name already in the vault makes any link to it ambiguous.
-    if nfc(name) in index:
-        problems.append(("duplicate filename", name))
 
     return problems
+
 
 
 # Routing, level 2 of the schema doc's three: warn when `--type` is a first
