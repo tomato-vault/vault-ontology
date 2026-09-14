@@ -73,8 +73,9 @@ def check_icloud(vault: Path):
 def run_doctor(vault: Path, restore: bool = False):
     """Run all three checks and optionally restore missing files."""
     vault = Path(vault)
-    if not (vault / ".git").is_dir():
+    if not (vault / ".git").exists():
         return None
+
 
     g = Git(vault)
     missing = check_missing(g)
