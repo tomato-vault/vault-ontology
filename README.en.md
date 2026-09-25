@@ -2,7 +2,7 @@
 
 [![Korean](https://img.shields.io/badge/lang-Korean-blue)](README.md)
 
-> Turning 4,204 Obsidian notes into a **graph a machine can read** — and learning ontology by hand while doing it.
+> Turning 4,400+ Obsidian notes into a **graph a machine can read** — and learning ontology by hand while doing it.
 > The same data gets modelled **twice**: once as a property graph, once as an RDF ontology.
 
 ## Highlights
@@ -27,7 +27,7 @@
 
 I had a rough idea of what an ontology was. A recent conversation with colleagues filled in the details, and the whole time I kept thinking about my Obsidian vault.
 
-The vault exists to be **a database of what I learn while building things**. It has 4,204 notes, already tangled together by 11,624 wikilinks. To a human eye it is obviously a graph — but **there is no structure a machine can read.** I initially thought an ontology was exactly the tool for that gap. This project tests that hypothesis against the real vault.
+The vault exists to be **a database of what I learn while building things**. It has 4,400+ notes, already tangled together by 11,624 wikilinks. To a human eye it is obviously a graph — but **there is no structure a machine can read.** I initially thought an ontology was exactly the tool for that gap. This project tests that hypothesis against the real vault.
 
 So this repo does two things at once.
 
@@ -59,7 +59,7 @@ RDFS/OWL inference ultimately produced zero useful facts that SQLite could not a
 ## Modelled Twice
 
 ```
-            4,204 markdown notes  (the source)
+            4,400+ markdown notes  (the source)
                      │
   Phase 1~3     parse         frontmatter · wikilinks · file index
                      │
@@ -323,3 +323,11 @@ There are three moments it may be opened: stuck for over 30 minutes · **the Pha
 | Tests | pytest — 241 |
 
 Holding off on dependencies wasn't taste, it was the point. **Writing the parsers by hand is what Phases 1–5 are for**, and the constraint lifts in Phase 6, where that purpose ends.
+
+---
+
+## Related Projects & Articles
+
+- [`repo-ontology (otlg)`](https://github.com/tomato-vault/repo-ontology): Executable ontology framework and CLI porting Palantir Foundry / AIP primitives (Objects, Links, Actions, Functions) into Git codebases.
+- [Engineering Blog (tomato-vault.github.io)](https://tomato-vault.github.io): Technical essays on knowledge graphs, practical ontologies, and agentic workflows.
+
